@@ -1,5 +1,8 @@
+# vulnerable.py
 import sqlite3
 from flask import Flask, request
+import os
+import pickle
 
 app = Flask(__name__)
 
@@ -12,22 +15,28 @@ conn.commit()
 @app.route('/user')
 def get_user():
     user_id = request.args.get('id', '')
-    query = "SELECT * FROM users WHERE id = " + user_id  # ❌ raw query
+    query = "SELECT * FROM users WHERE id = " + user_id  # ❌ raw query -> SQL injection
     cursor.execute(query)
     rows = cursor.fetchall()
     return {'rows': rows}
 
-# ALERT 2: Command Injection (os.system dengan input user)
-import os
+# ALERT 2: Command Injection / Uncontrolled command line
 @app.route('/ping')
 def ping():
     ip = request.args.get('ip', '')
-    # ❌ langsung eksekusi perintah shell dari input user
-    os.system("ping -c 1 " + ip)
+    os.system("ping -c 1 " + ip)  # ❌ executes shell command built from user input
     return {"status": "done"}
 
-# ALERT 3: Hardcoded secret
-SECRET_KEY = "12345supersecret"   # ❌ key hardcoded, CodeQL/secret-scanning bisa detect
+# ALERT 3: Eval / Remote Code Execution pattern
+@app.route('/calc')
+def calc():
+    expr = request.args.get('expr', '')
+    # ❌ using eval on user-controlled input -> CodeQL should flag this as RCE risk
+    result = eval(expr)
+    return {"result": result}
+
+# (optional) Hardcoded secret - may appear under Secret scanning instead
+SECRET_KEY = "12345supersecret"
 
 @app.route('/')
 def home():
